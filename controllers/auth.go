@@ -5,6 +5,7 @@ import (
 
 	"github.com/gKits/sessionauthapi/database"
 	"github.com/gKits/sessionauthapi/models"
+	"github.com/gKits/sessionauthapi/token"
 	"github.com/gin-contrib/sessions"
 	"github.com/gin-gonic/gin"
 	"golang.org/x/crypto/bcrypt"
@@ -50,8 +51,13 @@ func Login(c *gin.Context) {
 		return
 	}
 
-    user.Password = ""
-    session.Set("uid", user.ID)
+    token, err := token.CreatePasetoToken(user.Username)
+    if err != nil {
+        c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error(), "message": "token creation failed"})
+    }
+
+    session.Set("Username", user.Username)
+    session.Set("token", token)
     err = session.Save(); if err != nil {
         c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
         return
@@ -62,12 +68,9 @@ func Login(c *gin.Context) {
 
 func Logout(c *gin.Context) {
     session := sessions.Default(c)
-    user := session.Get("uid")
-    if user == nil {
-        c.JSON(http.StatusUnauthorized, gin.H{"error": nil, "message": "invalid session token"})
-    }
 
-    session.Delete("uid")
+    session.Delete("Username")
+    session.Delete("token")
     err := session.Save(); if err != nil {
         c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error(), "message": "session save failed"})
         return
