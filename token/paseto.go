@@ -6,15 +6,16 @@ import (
 	"time"
 
 	"github.com/gKits/sessionauthapi/models"
-    "github.com/o1egl/paseto"
+	"github.com/o1egl/paseto"
 )
 
 func CreatePasetoToken(username string) (string, error) {
-    duration, err := strconv.Atoi(os.Getenv("TOKEN_EXPIRATION"))
+    duration, err := strconv.Atoi(os.Getenv("TOKEN_LIFESPAN_HOURS"))
     if err != nil {
         return "", err
     }
-    payload, err := models.NewPayload(username, time.Duration(duration))
+
+    payload, err := models.NewPayload(username, time.Hour * time.Duration(duration))
     if err != nil {
         return "", err
     }

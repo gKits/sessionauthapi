@@ -8,7 +8,6 @@ import (
 	"github.com/gKits/sessionauthapi/token"
 	"github.com/gin-contrib/sessions"
 	"github.com/gin-gonic/gin"
-	"golang.org/x/crypto/bcrypt"
 )
 
 func Register(c *gin.Context) {
@@ -39,24 +38,26 @@ func Login(c *gin.Context) {
 		return
 	}
 
-	user, err := database.GetUserByEmail(login.Email)
+	user, err := database.GetUserBy("Email", login.Email)
 	if err != nil {
         c.JSON(http.StatusBadRequest, gin.H{"error": err.Error(), "message": "user not found"})
 		return
 	}
+    user.Password = login.Password
 
-	err = bcrypt.CompareHashAndPassword([]byte(user.Password), []byte(login.Password))
-	if err != nil && err == bcrypt.ErrMismatchedHashAndPassword {
-        c.JSON(http.StatusUnauthorized, gin.H{"error": err.Error(),"mesage": "authorization failed"})
-		return
-	}
+    err = database.ValidateUser(user)
+    if err != nil {
+        c.JSON(http.StatusUnauthorized, gin.H{"error": err.Error(), "message": "wrong password"})
+        return
+    }
 
     token, err := token.CreatePasetoToken(user.Username)
     if err != nil {
         c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error(), "message": "token creation failed"})
+        return
     }
 
-    session.Set("Username", user.Username)
+    session.Set("username", user.Username)
     session.Set("token", token)
     err = session.Save(); if err != nil {
         c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
@@ -69,7 +70,7 @@ func Login(c *gin.Context) {
 func Logout(c *gin.Context) {
     session := sessions.Default(c)
 
-    session.Delete("Username")
+    session.Delete("username")
     session.Delete("token")
     err := session.Save(); if err != nil {
         c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error(), "message": "session save failed"})
@@ -78,3 +79,30 @@ func Logout(c *gin.Context) {
 
     c.JSON(http.StatusOK, gin.H{"message": "logout successful"})
 }
+
+func GetUser(c *gin.Context) {
+    session := sessions.Default(c)
+
+    username := session.Get("username")
+    if username == nil {
+        c.JSON(http.StatusInternalServerError, gin.H{"error": nil, "message": "session corupted"})
+        return
+    }
+
+    user, err := database.GetUserBy("Username", username.(string))
+    if err != nil {
+        c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error(), "message": "user not found"})
+        return
+    }
+
+    c.JSON(http.StatusOK, gin.H{"data": user})
+}
+
+
+
+
+
+
+
+
+
