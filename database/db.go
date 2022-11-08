@@ -1,13 +1,13 @@
 package database
 
 import (
-	"errors"
 	"fmt"
 	"os"
 
 	"github.com/gKits/sessionauthapi/models"
 	"github.com/jinzhu/gorm"
 	_ "github.com/jinzhu/gorm/dialects/postgres"
+	"golang.org/x/crypto/bcrypt"
 )
 
 func ConnectDB() (*gorm.DB, error) {
@@ -44,36 +44,42 @@ func CreateUser(u *models.User) (*models.User, error) {
 	return u, nil
 }
 
-func GetUserByEmail(email string) (models.User, error) {
-	u := models.User{}
+func GetUserBy(criteria, searchkey string) (models.User, error) {
+    user := models.User{}
 
-	db, err := ConnectDB()
-	if err != nil {
-		return models.User{}, err
-	}
-	defer db.Close()
+    db, err := ConnectDB()
+    if err != nil {
+        return models.User{}, err
+    }
+    defer db.Close()
 
-	err = db.Model(&models.User{}).Where("Email = ?", email).Take(&u).Error
-	if err != nil {
-		return models.User{}, err
-	}
-	return u, nil
+    err = db.Model(&models.User{}).Where(fmt.Sprintf("%s = ?", criteria), searchkey).Take(&user).Error
+    if err != nil {
+        return models.User{}, err
+    }
+
+    user.Password = ""
+    return user, nil
 }
 
-func GetUserById(uid uint) (models.User, error) {
-	u := models.User{}
+func ValidateUser(user models.User) error {
+    validation := models.User{}
 
-	db, err := ConnectDB()
-	if err != nil {
-		return models.User{}, err
+    db, err := ConnectDB()
+    if err != nil {
+        return err
+    }
+    defer db.Close()
+
+    err = db.Model(&models.User{}).Where("Email = ?", user.Email).Take(&validation).Error
+    if err != nil {
+        return err
+    }
+
+	err = bcrypt.CompareHashAndPassword([]byte(validation.Password), []byte(user.Password))
+	if err != nil && err == bcrypt.ErrMismatchedHashAndPassword {
+		return err
 	}
-	defer db.Close()
 
-	err = db.First(&models.User{}).Where("ID = ?", uid).Take(&u).Error
-	if err != nil {
-		return models.User{}, errors.New("user not found")
-	}
-
-	u.Password = ""
-	return u, nil
+    return nil
 }
